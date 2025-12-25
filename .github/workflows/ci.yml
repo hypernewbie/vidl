@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Run Python Unit Tests
+      run: python test.py
+
+    - name: Configure CMake
+      run: cmake -S . -B build
+
+    - name: Build with CMake
+      run: cmake --build build
+
+    - name: Run C++ Integration Tests
+      run: ./build/VidlTest
+
+    - name: Upload Generated Header on Failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: vidl_generated_header
+        path: build/vidl_generated.h
