@@ -126,8 +126,9 @@ def generate_source(content):
         initializer_list = []
         
         for p in func['params']:
+            member_type = p['type'].replace('&', '').strip()
             default_str = f" = {p['default']}" if p.get('default') else ""
-            struct_lines.append(f"    {p['type']} {p['name']}{default_str};")
+            struct_lines.append(f"    {member_type} {p['name']}{default_str};")
             # For constructor: type _name
             ctor_params.append(f"{p['type']} _{p['name']}")
             # For initializer: name(_name)
@@ -152,6 +153,9 @@ def generate_source(content):
         handler_lines.append(f"    virtual void Handle_{h['name']}( VIDL_{h['name']}* cmd ) {{ (void) cmd; }};")
     
     handler_lines.append("")
+    handler_lines.append("    virtual void HandleLogFunction( const char* str ) {};")
+
+    handler_lines.append("")
     handler_lines.append("    virtual void HandleCmd( void* cmd )")
     handler_lines.append("    {")
     handler_lines.append("        uint64_t magic = *(uint64_t*)cmd;")
@@ -160,6 +164,7 @@ def generate_source(content):
     
     for h in handler_funcs:
         handler_lines.append(f"        case {h['magic']}:")
+        handler_lines.append(f"            HandleLogFunction(\"Handle_{h['name']}\");")
         handler_lines.append(f"            Handle_{h['name']}( (VIDL_{h['name']}*) cmd );")
         handler_lines.append("            break;")
         
