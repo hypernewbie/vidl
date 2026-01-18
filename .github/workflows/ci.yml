@@ -32,7 +32,7 @@ jobs:
 
     - name: Upload Generated Header on Failure
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vidl_generated_header
         path: build/vidl_generated.h
