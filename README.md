@@ -2,6 +2,8 @@
 
 [![Download vidl.py](https://img.shields.io/badge/Download-vidl.py-blue?style=for-the-badge&logo=python)](https://raw.githubusercontent.com/hypernewbie/vidl/refs/heads/main/vidl.py)
 
+[![CI](https://github.com/hypernewbie/vidl/actions/workflows/ci.yml/badge.svg)](https://github.com/hypernewbie/vidl/actions/workflows/ci.yml)
+
 Vidl is a lightweight Python script that parses C++ header files for `// VIDL_GENERATE` comments and generates corresponding C++ structs and a command handler. It is useful for creating type-safe command buffers or RPC mechanisms.
 
 > NOTE: Vidl is vide coded, without too much code oversight. Intended as a throwaway tool of sorts. Use at your own risk.
