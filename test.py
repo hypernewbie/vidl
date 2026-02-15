@@ -260,5 +260,16 @@ class TestVidl(unittest.TestCase):
         # We can check that the only constructor is the default one or checking string absence
         self.assertNotIn("VIDL_DoNothing() :", output)
 
+    def test_regression_reference_members(self):
+        content = """
+        // VIDL_GENERATE
+        void vhBeginMarker(const std::string& name);
+        """
+        output = vidl.generate_source(content)
+        # The member should NOT be a reference
+        self.assertIn("const std::string name;", output)
+        # The constructor parameter SHOULD be a reference
+        self.assertIn("VIDL_vhBeginMarker(const std::string& _name)", output)
+
 if __name__ == '__main__':
     unittest.main()
