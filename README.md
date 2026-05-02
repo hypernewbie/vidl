@@ -60,6 +60,38 @@ struct VIDLHandler
 };
 ```
 
+## Storage-type overrides
+
+By default, Vidl strips references from parameter types when generating struct
+members (so `const std::vector<int>&` becomes `std::vector`).  The
+`// VIDL_STORAGE` annotation lets you override the stored type for any
+individual parameter — useful when you want to avoid heap copies of large
+arguments.
+
+```cpp
+// VIDL_GENERATE
+// VIDL_STORAGE: uniforms = vhArenaSpan< vhArenaUniformValue >
+void vhCmdSetStateUniforms(
+    vhStateId id,
+    const std::vector< vhState::UniformBufferValue >& uniforms );
+```
+
+The generated struct stores `vhArenaSpan< … >` for `uniforms` and the ctor
+accepts that span type verbatim.  The public function signature is unchanged;
+the hand-written implementation is responsible for converting the `vector` to
+a span before constructing the VIDL struct.
+
+**Syntax rules:**
+
+- Place each `// VIDL_STORAGE: <param_name> = <storage_type>` line between
+  `// VIDL_GENERATE` and the function declaration it applies to.
+- One annotation line per parameter; multiple lines are allowed to override
+  several parameters.
+- Annotations are scoped to the immediately following function only — they
+  do not carry over to subsequent `// VIDL_GENERATE` blocks.
+- References an unknown parameter name → `ValueError`.
+- Annotates the same parameter twice → `ValueError`.
+
 ## Usage
 
 You can use `vidl.py` directly to generate code from a source file.

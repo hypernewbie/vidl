@@ -271,5 +271,163 @@ class TestVidl(unittest.TestCase):
         # The constructor parameter SHOULD be a reference
         self.assertIn("VIDL_vhBeginMarker(const std::string& _name)", output)
 
+
+class TestVidlStorage(unittest.TestCase):
+
+    def test_no_annotation_unchanged(self):
+        src = """
+        // VIDL_GENERATE
+        void foo( int a, std::vector<int> b );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("int a;", out)
+        self.assertIn("std::vector<int> b;", out)
+        self.assertIn("foo(int _a, std::vector<int> _b)", out)
+
+    def test_single_storage_override(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: b = MySpan<int>
+        void foo( int a, std::vector<int> b );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("int a;", out)
+        self.assertIn("MySpan<int> b;", out)
+        self.assertNotIn("std::vector<int> b;", out)
+        self.assertIn("foo(int _a, MySpan<int> _b)", out)
+
+    def test_multiple_overrides_one_func(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: a = ArenaA
+        // VIDL_STORAGE: b = ArenaB
+        void foo( int a, int b, int c );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("ArenaA a;", out)
+        self.assertIn("ArenaB b;", out)
+        self.assertIn("int c;", out)
+        self.assertIn("foo(ArenaA _a, ArenaB _b, int _c)", out)
+
+    def test_override_with_template_args(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: data = vhArenaSpan< glm::mat4 >
+        void foo( vhStateId id, std::vector< glm::mat4 > data );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("vhArenaSpan< glm::mat4 > data;", out)
+        self.assertIn("vhStateId _id, vhArenaSpan< glm::mat4 > _data", out)
+
+    def test_whitespace_tolerance(self):
+        src = """
+        // VIDL_GENERATE
+        //VIDL_STORAGE:b=MyType
+        void foo( int a, int b );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("MyType b;", out)
+
+    def test_annotation_scoped_to_one_block(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: x = OverrideA
+        void foo( int x );
+
+        // VIDL_GENERATE
+        void bar( int x );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("OverrideA x;", out)
+        foo_idx = out.index("VIDL_foo")
+        bar_idx = out.index("VIDL_bar")
+        bar_section = out[bar_idx:]
+        self.assertNotIn("OverrideA", bar_section)
+        self.assertIn("int x;", bar_section)
+
+    def test_keyword_param_name_with_override(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: class = MyClass
+        void foo( int class );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("MyClass class_;", out)
+        self.assertIn("MyClass _class_", out)
+
+    def test_magic_constants_stable_with_override(self):
+        src_no = "// VIDL_GENERATE\nvoid foo( std::vector<int> a );"
+        src_yes = (
+            "// VIDL_GENERATE\n"
+            "// VIDL_STORAGE: a = MySpan\n"
+            "void foo( std::vector<int> a );"
+        )
+        m1 = re.search(r"kMagic = (\w+)", vidl.generate_source(src_no)).group(1)
+        m2 = re.search(r"kMagic = (\w+)", vidl.generate_source(src_yes)).group(1)
+        self.assertEqual(m1, m2)
+
+    def test_unknown_param_name_raises(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: typo = MyType
+        void foo( int a );
+        """
+        with self.assertRaises(ValueError) as ctx:
+            vidl.generate_source(src)
+        msg = str(ctx.exception)
+        self.assertIn("typo", msg)
+        self.assertIn("foo", msg)
+        self.assertIn("a", msg)
+
+    def test_duplicate_annotation_raises(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: x = TypeA
+        // VIDL_STORAGE: x = TypeB
+        void foo( int x );
+        """
+        with self.assertRaises(ValueError) as ctx:
+            vidl.generate_source(src)
+        msg = str(ctx.exception)
+        self.assertIn("duplicate", msg)
+        self.assertIn("x", msg)
+        self.assertIn("foo", msg)
+
+    def test_default_value_preserved_with_override(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: x = MyType
+        void foo( int x = 5 );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("MyType x = 5;", out)
+
+    def test_override_only_named_param_affected(self):
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: b = Overridden
+        void foo( std::vector<int> a, std::vector<int> b, std::vector<float> c );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("std::vector<int> a;", out)
+        self.assertIn("Overridden b;", out)
+        self.assertIn("std::vector<float> c;", out)
+        self.assertNotIn("std::vector<int> b;", out)
+
+    def test_ctor_param_uses_override_not_reference(self):
+        # Without override, a reference param like `const std::vector<int>& v`
+        # strips the & for the member type but keeps it in the ctor.
+        # With an override the ctor must use the override type verbatim.
+        src = """
+        // VIDL_GENERATE
+        // VIDL_STORAGE: v = MySpan
+        void foo( const std::vector<int>& v );
+        """
+        out = vidl.generate_source(src)
+        self.assertIn("MySpan v;", out)
+        self.assertIn("MySpan _v", out)
+        self.assertNotIn("MySpan& _v", out)
+
+
 if __name__ == '__main__':
     unittest.main()
